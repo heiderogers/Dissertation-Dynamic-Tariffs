@@ -1,6 +1,6 @@
 """
-Exploratory Analysis — Pipeline 4
-Produces descriptive statistics and charts for dissertation Chapter 4 (EDA).
+Exploratory Analysis — Pipeline 1b
+Produces descriptive statistics and charts
 
 Outputs:
   data_outputs/chart_01_price_distribution.png
@@ -24,10 +24,6 @@ Inputs:
   data_clean/master_hourly.csv
   data_clean/H25_hourly_profile.csv
 
-Sources:
-  SMARD.de — EPEX Spot Day-Ahead prices, realised generation, realised consumption
-  DWD CDC — Hourly temperature, station Potsdam (ID 03987)
-  BDEW H0 standard load profile (March 2025)
 """
 
 import pandas as pd
@@ -203,6 +199,7 @@ print("Chart 5 saved")
 fig, ax = plt.subplots(figsize=(10, 5))
 
 ax.hist(master['temperature_c'], bins=80, color='steelblue', edgecolor='none')
+# 15°C heating threshold (Heizgrenztemperatur) — standard German threshold above which space heating is assumed unnecessary; per VDI 3807 Blatt 1 (2013)
 ax.axvline(x=15, color='red', linestyle='--', linewidth=0.8,
            label='Heating threshold 15°C (VDI 3807 Blatt 1, 2013)')
 ax.set_xlabel('Temperature (°C)')

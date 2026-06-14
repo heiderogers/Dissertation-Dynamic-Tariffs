@@ -1,6 +1,6 @@
 """
 Breakeven — Pipeline 3b
-Computes C* (break-even switching costs) per archetype x tariff x scenario x year
+Computes C* (break-even switching costs) per archetype × tariff × scenario × year
 and saves to data_simulation/breakeven.csv
 
 C* definition:
@@ -21,20 +21,6 @@ Risk metrics:
   Computed both per year (2023, 2024, 2025) and pooled across all three years.
   worst_month_eur: maximum single-month bill premium over T1 passive
   loss_month_prob: share of months where dynamic bill exceeds T1 passive
-  Per-year metrics allow year-specific characterisation (2023 high-price,
-  2024 low-price, 2025 moderate); pooled captures full observed volatility range.
-  2025 is the primary year; 2023/2024 bracket the range across price environments.
-
-Output columns:
-  archetype, tariff, scenario, year — combination identifiers
-  annual_bill_eur — total annual bill for this combination
-  baseline_bill_eur — T1 passive annual bill for same archetype and year
-  c_star — annual break-even switching cost (€/yr); positive = switching rational
-  c_star_avg — 3-year average C* (reference; not primary result)
-  worst_month_eur_2023/2024/2025 — per-year maximum monthly loss vs T1 passive (€)
-  loss_month_prob_2023/2024/2025 — per-year share of months dynamic > T1 passive
-  worst_month_eur_pooled — maximum monthly loss pooled across 2023-2025
-  loss_month_prob_pooled — share of months dynamic > T1 passive pooled across 2023-2025
 
 Inputs:
   data_simulation/bills.csv

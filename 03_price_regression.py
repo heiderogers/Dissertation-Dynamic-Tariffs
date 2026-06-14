@@ -1,5 +1,5 @@
 """
-Price Regression — Pipeline 5
+Price Regression — Pipeline 1c
 OLS regression: price_eur_mwh ~ residual_load_gw + hour FEs + month FEs
 Run separately for 2023, 2024, 2025 to characterise the price-residual load
 relationship across different price environments.
@@ -128,14 +128,13 @@ for m in sorted(month_fe):
 # ============================================================
 # Shows how much of price variation is explained by residual load alone
 # vs after adding hour and month FEs
-# Result: residual load alone explains ~77%; FEs add ~3pp
 # Interpretation: daily/seasonal patterns largely mediated through residual
 # load rather than independent of it — confirms price signal is structural
 subset_2025 = master[master['year'] == 2025].copy()
-m_full  = smf.ols('price_eur_mwh ~ residual_load_gw + C(hour) + C(month)', data=subset_2025).fit()
 m_no_fe = smf.ols('price_eur_mwh ~ residual_load_gw', data=subset_2025).fit()
 m_hour  = smf.ols('price_eur_mwh ~ residual_load_gw + C(hour)', data=subset_2025).fit()
 m_month = smf.ols('price_eur_mwh ~ residual_load_gw + C(month)', data=subset_2025).fit()
+m_full  = smf.ols('price_eur_mwh ~ residual_load_gw + C(hour) + C(month)', data=subset_2025).fit()
 
 print("\n── R² decomposition (2025) ──")
 print(f"  Residual load only:        {m_no_fe.rsquared:.3f}")

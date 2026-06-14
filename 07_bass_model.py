@@ -1,55 +1,25 @@
 """
 Bass Diffusion Model — Pipeline 3c
-Models dynamic tariff adoption over time
-with smart meter infrastructure ceiling I(t)
+Models dynamic tariff adoption over time with smart meter infrastructure ceiling.
 
-M(t) = time-varying addressable market: EV households with home charging (x72% filter)
-       Source: Agora Verkehrswende & BCG (2024), Abbildung 1, reference scenario
-       72% filter per Agora Energiewende & FfE (2023) §4.1.2 p.49
-       Post-2030: linear extrapolation at +1.3M/yr (2025-2030 avg increment)
-       Cross-check: KBA Pressemitteilung Nr. 08/2026, 2,034,260 BEV as of 01.01.2026
-       Upper bound: min(M(t), I(t)) assumes smart meter rollout prioritises EV households
-       consistent with §45 MsbG mandate targeting, but likely overstates coverage in
-       early years given observed rollout heterogeneity (77% of mandatory cases
-       unequipped as of Q4 2025)
-
-I(t) = single scenario: current rollout (§45 MsbG legal target, 4.23M by 2032)
-p    = 3 scenarios: low (0.003), central (0.010), high (0.025) — policy activation
-q    = 3 scenarios: low (0.15), central (0.30), high (0.50) — imitation/word-of-mouth
-Total: 3 p x 3 q = 9 combinations
-
-Parameter sources:
-p scenarios:
-- Low (p=0.003): today's hobbyist/early adopter reality within EV households;
-  within Verma et al. (2025) empirical range (p=0.001-0.006); reflects small organic
-  adoption among tech-engaged EV owners (Tibber early adopters) without policy push;
-  81% of households poorly informed (vzbv 2024)
-- Central (p=0.010): modest policy activation; Becker et al. (2009) lower-end EV
-  policy scenario via Massiani & Gohs (2015) pp.21-22; §41a awareness growing,
-  providers scaling marketing, dynamic tariff information entering EV purchase process
-- High (p=0.025): strong policy activation; Becker et al. (2009) upper-end scenario
-  via Massiani & Gohs (2015) pp.21-22; approaching Turk & Trkman (2012) German
-  broadband upper bound (p=0.027); default opt-in at EV purchase, active government
-  communication, dynamic tariff bundled with wallbox installation
-
-q scenarios:
-- Low (q=0.15): conservative word-of-mouth; between Verma et al. (2025) smart meter
-  opt-in floor (q=0.02) and broadband ceiling; low social learning, no marketing
-  breakthrough
-- Central (q=0.30): active switching decision + energy bill salience; discounted from
-  Turk & Trkman (2012) German broadband (q=0.71) to reflect absent network effects
-  in dynamic tariff adoption
-- High (q=0.50): strong word-of-mouth; below broadband ceiling given dynamic tariffs
-  lack network effects that inflate broadband q
-
-I(t) source:
-- I0 = 1.1M: BNetzA Q4 2025, 23.3% of 4.7M mandatory Pflichteinbaufaelle equipped
-- Current: §45 MsbG legal target, 90% of Pflichteinbaufaelle by 31 December 2032
+M(t): time-varying addressable market — EV households with home charging based on simulation results (×72% filter to exclude industrial and not at-home charging)
+I(t): infra barrier as smart meter installed base — current rollout (§45 MsbG, 4.23M by 2032); I0 = 1.1M (BNetzA Q4 2025); L = 42M long-run ceiling
+p:    innovation parameter — 3 scenarios: low (0.003), central (0.010), high (0.025)
+q:    imitation parameter — 3 scenarios: low (0.15), central (0.30), high (0.50)
+      Total: 3p × 3q = 9 combinations
 
 Effective ceiling at each t: min(M(t), I(t))
-Upper bound assumption: §45 MsbG prioritises §14a devices incl. EVs, so smart meter
-rollout within M(t) proceeds faster than aggregate I(t); min(M(t), I(t)) is nonetheless
-conservative relative to unconstrained Bass
+Adoption = min(unconstrained Bass, effective ceiling)
+
+Key sources:
+  Agora Verkehrswende & BCG (2024) — M(t) EV fleet trajectory, reference scenario
+  Agora Energiewende & FfE (2023) §4.1.2 — 72% residential home charging filter
+  KBA Pressemitteilung Nr. 08/2026 — cross-check: 2.03M BEV registered 01.01.2026
+  BNetzA Q4 2025 — I0 = 1.1M smart meters installed
+  Verma et al. (2025) — p and q empirical range for smart meter opt-in
+  Becker et al. (2009) via Massiani & Gohs (2015) — p policy scenarios
+  vzbv (2024) — 81% poorly informed about dynamic tariffs; anchors low p scenario
+  Turk & Trkman (2012) — q upper bound from German broadband diffusion
 
 Outputs:
   data_simulation/bass_adoption.csv
@@ -134,7 +104,7 @@ def find_k(waypoint, t_target, t0, L=L, I0=I0):
 def make_I(scenario):
     waypoint, waypoint_year = I_WAYPOINTS[scenario]
     t_target = waypoint_year - 2025
-    t0 = t_target * 0.7
+    t0 = t_target * 0.7  # inflection point at 70% of waypoint year (≈2030); reflects expected rollout acceleration through late 2020s before mandatory segment saturates at 2032 waypoint
     k = find_k(waypoint, t_target, t0)
     raw = logistic(T, L, k, t0)
     scaled = raw * (I0 / raw[0])

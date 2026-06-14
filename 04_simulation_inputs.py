@@ -12,8 +12,8 @@ Tariffs:
 Archetypes:
   A — Basic household (3,500 kWh/yr): BDEW H0 base load, Dynamisierung applied
   B — Heat pump (7,500 kWh/yr): A + temperature-driven HP load (4,000 kWh/yr)
-  C — HP + EV (10,000 kWh/yr): B + passive EV charging load (2,500 kWh/yr)
-  D — EV only (6,000 kWh/yr): A + passive EV charging load (2,500 kWh/yr)
+  C — EV only (6,000 kWh/yr): A + passive EV charging load (2,500 kWh/yr)
+  D — HP + EV (10,000 kWh/yr): A + temperature-driven HP load (4,000 kWh/yr) + passive EV charging load (2,500 kWh/yr)
 
 Key sources:
   BDEW Strompreisanalyse April 2026 — flat tariff and fixed component stack
@@ -21,14 +21,14 @@ Key sources:
   Stromnetz Berlin Preisblatt 2026 — §14a Module 3 time-variable grid fees
   BDEW H0 standard load profile (March 2025) — base load shape + Dynamisierung coefficients
   VDI 3807 Blatt 1 (2013) / DWD — heating threshold 15°C
-  Märtz et al. (2022), DOI: 10.3390/en15186575 — EV passive charging hours
+  Märtz et al. (2022) — EV passive charging hours
 
 Outputs:
   data_simulation/tariff_prices.csv — hourly tariff prices for all four tariffs
   data_simulation/load_profile_A.csv — hourly load profile Archetype A
   data_simulation/load_profile_B.csv — hourly load profile Archetype B (incl. load_hp)
   data_simulation/load_profile_C.csv — hourly load profile Archetype C (incl. load_ev)
-  data_simulation/load_profile_D.csv — hourly load profile Archetype D
+  data_simulation/load_profile_D.csv — hourly load profile Archetype D (incl. load_hp, load_ev)
 """
 
 import pandas as pd
@@ -46,13 +46,23 @@ print(f"Loaded master: {len(master)} rows")
 # ============================================================
 # ANNUAL CONSUMPTION TARGETS
 # ============================================================
-ANNUAL_KWH_A = 3500   # Archetype A: basic household (kWh/yr)
-ANNUAL_KWH_B = 7500   # Archetype B: heat pump household (kWh/yr)
-ANNUAL_KWH_C = 10000  # Archetype C: HP + EV household (kWh/yr)
-ANNUAL_KWH_D = 6000   # Archetype D: EV only household (kWh/yr)
+# A: 3,500 kWh/yr — BDEW Musterhaushalt, 3-person single-family house
+#    Source: BDEW Strompreisanalyse April 2026; BDEW Zahl der Woche (household size)
+#
+# B: 7,500 kWh/yr — A + 4,000 kWh/yr HP; WPuQ median (n=30 German SFH)
+#    Source: Schlemminger et al. (2022), Scientific Data
+#
+# C: 6,000 kWh/yr — A + 2,500 kWh/yr EV; based on KBA average annual mileage
+#    Source: KBA Verkehr in Kilometern
+#
+# D: 10,000 kWh/yr — A + HP + EV combined
+ANNUAL_KWH_A = 3500
+ANNUAL_KWH_B = 7500
+ANNUAL_KWH_C = 6000
+ANNUAL_KWH_D = 10000
 
 ANNUAL_HP_KWH = ANNUAL_KWH_B - ANNUAL_KWH_A   # 4,000 kWh/yr HP component
-ANNUAL_EV_KWH = ANNUAL_KWH_C - ANNUAL_KWH_B   # 2,500 kWh/yr EV component
+ANNUAL_EV_KWH = ANNUAL_KWH_C - ANNUAL_KWH_A   # 2,500 kWh/yr EV component
 
 # ============================================================
 # TARIFF CONSTRUCTION
@@ -243,9 +253,11 @@ load_B.to_csv('data_simulation/load_profile_B.csv')
 print(f"Saved: data_simulation/load_profile_B.csv")
 
 # ============================================================
-# ARCHETYPE C — Base load + heat pump + EV (10,000 kWh/yr)
-# EV passive charging concentrated in hours 18-21
-# Source: Märtz et al. (2022), DOI: 10.3390/en15186575
+# ARCHETYPE C — Base load + EV only (6,000 kWh/yr)
+# No heat pump — EV owner with district heating or gas
+# Isolates EV flexibility value without HP winter load correlation
+# Märtz et al. (2022), DOI: 10.3390/en15186575 — plug-in times concentrate between
+# 18:00 and 21:00 from German EV charging data
 # ============================================================
 EV_CHARGING_HOURS = [18, 19, 20, 21]  # Märtz et al. (2022): plug-in peak ~18:00
 
@@ -259,13 +271,13 @@ for year in [2023, 2024, 2025]:
     ev_scaling_factor = ANNUAL_EV_KWH / annual_ev_sum
     master.loc[year_mask, 'load_ev'] = master.loc[year_mask, 'load_ev_raw'] * ev_scaling_factor
 
-master['load_C'] = master['load_B'] + master['load_ev']
+master['load_C'] = master['load_A'] + master['load_ev']
 
 print("\n=== ARCHETYPE C CHECK ===")
 for year in [2023, 2024, 2025]:
     subset = master[master['year'] == year]
-    print(f"{year}: total = {subset['load_C'].sum():.1f} kWh "
-          f"(B = {subset['load_B'].sum():.1f}, EV = {subset['load_ev'].sum():.1f})")
+    print(f"{year}: total = {subset['load_C'].sum():.1f} kWh (should be {ANNUAL_KWH_C}) "
+          f"(base = {subset['load_A'].sum():.1f}, EV = {subset['load_ev'].sum():.1f})")
 
 print("\n=== PROFILE SHAPE CHECK ARCHETYPE C ===")
 for year in [2023, 2024, 2025]:
@@ -277,29 +289,28 @@ for year in [2023, 2024, 2025]:
     print(f"{year}: winter = {winter:.1f} kWh, summer = {summer:.1f} kWh, ratio = {winter/summer:.2f}")
     print(f"  EV: winter = {ev_winter:.1f} kWh, summer = {ev_summer:.1f} kWh, ratio = {ev_winter/ev_summer:.2f}")
 
-load_C = master[['load_C', 'load_B', 'load_ev', 'load_A', 'load_hp',
-                  'year', 'month', 'hour', 'dayofweek']].copy()
+load_C = master[['load_C', 'load_A', 'load_ev', 'year', 'month', 'hour', 'dayofweek']].copy()
 load_C.to_csv('data_simulation/load_profile_C.csv')
 print(f"Saved: data_simulation/load_profile_C.csv")
 
 # ============================================================
-# ARCHETYPE D — Base load + EV only (6,000 kWh/yr)
-# No heat pump — EV owner with district heating or gas
-# Isolates EV flexibility value without HP winter load correlation
-# Same EV component as Archetype C (2,500 kWh/yr, hours 18-21)
+# ARCHETYPE D — Base load + heat pump + EV (10,000 kWh/yr)
+# Combines HP and EV components; uses load_hp from Archetype B
+# and load_ev from Archetype C
 # ============================================================
-master['load_D'] = master['load_A'] + master['load_ev']
+master['load_D'] = master['load_A'] + master['load_hp'] + master['load_ev']
 
 print("\n=== ARCHETYPE D CHECK ===")
 for year in [2023, 2024, 2025]:
     subset = master[master['year'] == year]
     total = subset['load_D'].sum()
     base = subset['load_A'].sum()
+    hp = subset['load_hp'].sum()
     ev = subset['load_ev'].sum()
     print(f"{year}: total = {total:.1f} kWh (should be {ANNUAL_KWH_D}) "
-          f"(base = {base:.1f}, EV = {ev:.1f})")
+          f"(base = {base:.1f}, HP = {hp:.1f}, EV = {ev:.1f})")
 
-load_D = master[['load_D', 'load_A', 'load_ev', 'year', 'month', 'hour', 'dayofweek']].copy()
+load_D = master[['load_D', 'load_A', 'load_hp', 'load_ev', 'year', 'month', 'hour', 'dayofweek']].copy()
 load_D.to_csv('data_simulation/load_profile_D.csv')
 print(f"Saved: data_simulation/load_profile_D.csv")
 

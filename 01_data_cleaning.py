@@ -1,5 +1,5 @@
 """
-Data Cleaning — Pipeline 1
+Data Cleaning — Pipeline 1a
 Reads 5 raw data sources, cleans and merges into master hourly dataset.
 
 Outputs:
@@ -153,6 +153,9 @@ temp['temperature_c'] = temp['temperature_c'].replace(-999.0, pd.NA)  # DWD miss
 
 temp = temp[['datetime', 'temperature_c']].set_index('datetime')
 temp = temp.loc['2023':'2025']
+
+print("Missing temperature hours:")
+print(temp[temp['temperature_c'].isna()])
 
 print("=== 4. TEMPERATURE ===")
 print(f"Rows: {len(temp)}")

@@ -1,76 +1,45 @@
 """
 Simulation — Pipeline 3a
-Computes hourly bills for all archetype × tariff × scenario × year combinations
+Computes hourly bills for all archetype × tariff × scenario × year combinations.
 Aggregates to monthly and saves to data_simulation/bills.csv
 
 Archetypes:
   A — Basic household (3,500 kWh/yr): base load only
   B — Heat pump (7,500 kWh/yr): base load + HP (4,000 kWh/yr)
-  C — HP + EV (10,000 kWh/yr): base load + HP + EV (2,500 kWh/yr)
-  D — EV only (6,000 kWh/yr): base load + EV (2,500 kWh/yr)
+  C — EV only (6,000 kWh/yr): base load + EV (2,500 kWh/yr)
+  D — HP + EV (10,000 kWh/yr): base load + HP + EV
 
 Tariffs:
-  T1 — Flat: fixed wholesale + retail + grid + taxes (BDEW April 2026: 37.0 ct/kWh)
-  T2 — Dynamic theoretical: hourly EPEX + fixed grid + taxes (no provider fee)
-  T3 — Dynamic retail: T2 + Tibber Aufschlag (2.15 ct/kWh) + Grundgebühr (€71.88/yr)
-  T4 — Dynamic retail + grid: T3 + time-variable grid fees (Stromnetz Berlin §14a Module 3)
+  T1 — Flat: 37.0 ct/kWh (BDEW April 2026)
+  T2 — Dynamic theoretical: hourly EPEX + fixed grid + taxes, no provider fee
+  T3 — Dynamic retail: T2 + Tibber Aufschlag + Grundgebühr
+  T4 — Dynamic retail + grid: T3 + time-variable grid fees (§14a Module 3)
        T4 applies to Archetypes B, C, D only (§14a device required)
 
 Scenarios:
-  passive   — no load shifting; household consumes at scheduled times
+  passive   — no load shifting
   automated — HEMS optimises load timing using day-ahead price signal
 
-Flat adjustments (monthly):
-  Grundgebühr: €71.88/yr ÷ 12 = €5.99/month (Tibber, April 2026)
-    Applied to T3 and T4 for all archetypes
-  Module 1 reduction: -€123.18/yr ÷ 12 = -€10.265/month (Stromnetz Berlin, 2026)
-    Applied to T1, T2, T3 for Archetypes B, C, D (§14a device holders)
-
 Load shifting assumptions:
-  White goods (Archetype A, automated):
-    Annual shiftable load: 350 kWh/yr (~10% of 3,500 kWh; washing machine,
-      dryer, dishwasher)
-    Passive hours: 18-21 (evening concentration assumed)
-    Automated: daily budget (0.959 kWh) moved to cheapest hour in 00:00-24:00
-    Source: methodology assumption; load embedded in BDEW H0 profile
+  White goods (A, automated): 350 kWh/yr shifted from hours 18-21 to cheapest hour
+  Heat pump (B, D, automated): ±2h window, 2h minimum interval, 3 kWh/hr cap
+  EV (C, D, automated): plug-in window 18:00-07:00, 2-night lookahead
 
-  Heat pump (Archetypes B, C, automated):
-    Annual HP load: 4,000 kWh/yr, temperature-driven via heating degree hours
-      below 15°C (VDI 3807 Blatt 1, 2013; DWD station Potsdam ID 03987)
-    Shifting window: ±2h — consistent with empirical evidence that 2-hour HP-off
-      periods cause ≤1°C indoor temperature change in well-insulated homes
-      (Gupta & Morey, 2023); IEA HPT Magazine (2024) expert consensus 1-3hr window
-    Minimum adjustment interval: 2h — consistent with real HEMS implementations
-      to avoid short-cycling (Tibber Node-RED implementation, 2024)
-    Maximum hourly capacity: 3 kWh — nominal electrical capacity of residential
-      HP compressors in German field installations (Knoop et al., 2022)
-    Resulting shifting rate: ~22% of annual HP load, mean 5 adjustments/day
-    No building thermal state model — simplification relative to full MPC
-      (Mascherbauer et al., 2022); justified by Gupta & Morey (2023) comfort evidence
+Flat adjustments (monthly):
+  Grundgebühr: €5.99/month (Tibber April 2026) — T3 and T4, all archetypes
+  Module 1 reduction: -€10.265/month (Stromnetz Berlin 2026) — B, C, D on T1/T2/T3
 
-  EV (Archetypes C, D, automated):
-    Annual EV load: 2,500 kWh/yr; daily budget 6.85 kWh/day
-      (Märtz et al., 2022, DOI: 10.3390/en15186575)
-    Passive hours: 18-21 — peak evening charging (Märtz et al., 2022)
-    Plug-in window: 18:00-07:00 — consistent with overnight HEMS shifting
-      (Spencer et al., 2021, DOI: 10.1016/j.trd.2021.103023)
-    2-night lookahead: if tomorrow night's cheapest hour < tonight's cheapest hour,
-      defer charging by one day. Reflects day-ahead price transparency available
-      to real HEMS (Tibber publishes EPEX day-ahead prices at ~12:30 for next day)
-    At 11kW wallbox, 6.85 kWh requires ~37 minutes — concentrating in one hour
-      is physically realistic
-    Daily averaging understates day-to-day price variation (actual charging
-      frequency ~3x/week per Märtz et al., 2022) — automated savings are a
-      conservative lower bound
-    Known limitation: cross-year deferral modelled continuously across year
-      boundaries; last day of dataset (31.12.2025) has no following day so
-      no deferral possible
+Key sources:
+  Stromspiegel — washing machine ~200 kWh/yr, dishwasher ~150 kWh/yr: white good total;
+  Gupta & Morey (2023) — ≤1°C indoor temp change over 2h HP-off: ±2h HP shifting window;
+  Knoop et al. / WPuQ (2022) — 1.9-3 kWel nominal HP compressor capacity: 3 kWh/hr cap;
+  Spencer et al. (2021) — typical smart charging shifts EV load from evening peak to overnight window;
+  EPEX/EEX — day-ahead auction closes 12:00 CET, results published immediately after enabling 2-night lookahead timeline
 
 Outputs:
-  data_simulation/bills.csv — long-format monthly bills
+  data_simulation/bills.csv
     Columns: archetype, tariff, scenario, year, month, monthly_bill_eur
-    Expected rows: 1,080 (4 archetypes × 4 tariffs × 2 scenarios × 3 years × 12 months,
-    minus excluded combinations: A×T4 passive and automated = 72 rows excluded)
+    Rows: 1,080 (4 × 4 × 2 × 3 × 12, minus A×T4 = 72 excluded)
 """
 
 import pandas as pd
@@ -151,7 +120,7 @@ print(f"Missing values: {sim.isnull().sum().sum()}")
 
 # ============================================================
 # PASSIVE BILL CALCULATION
-# bill = load (kWh) × price (ct/kWh) / 100 → €
+# bill = load (kWh) × price (ct/kWh) / 100
 # ============================================================
 sim['bill_A_T1'] = sim['load_A'] * sim['t1_ct_kwh'] / 100
 sim['bill_A_T2'] = sim['load_A'] * sim['t2_ct_kwh'] / 100
@@ -217,32 +186,23 @@ dates = sim_auto['date'].unique()
 def compute_automated_loads(base_df, dates, price_col):
     """
     Compute automated load profiles for all archetypes.
-    All shifting decisions use price_col for cheapest-hour selection.
 
     White goods (Archetype A):
-      350 kWh/yr shiftable; passive hours 18-21; shifted to cheapest hour 00-24
-      Source: methodology assumption
+      350 kWh/yr shifted from hours 18-21 to cheapest hour in 00-24
 
-    Heat pump (Archetypes B, C):
-      ±2h window (Gupta & Morey, 2023; IEA HPT Magazine, 2024)
-      2h minimum interval (Tibber Node-RED, 2024)
-      3 kWh/hr cap (Knoop et al., 2022)
+    Heat pump (Archetypes B, D):
+      ±2h window, 2h minimum interval, 3 kWh/hr cap
 
     EV (Archetypes C, D):
-      2,500 kWh/yr; passive hours 18-21 (Märtz et al., 2022)
-      Plug-in window 18:00-07:00 (Spencer et al., 2021)
-      2-night lookahead using day-ahead prices (Tibber, 2024)
+      plug-in window 18:00-07:00, 2-night lookahead
     """
     df = base_df.copy()
 
     # --------------------------------------------------------
     # White goods shifting
-    # 350 kWh/yr shiftable load; passive concentration 18-21
-    # Shifted to cheapest hour in full day (00:00-24:00)
-    # Source: methodology assumption
     # --------------------------------------------------------
-    WG_DAILY = 350 / 365                    # kWh/day shiftable
-    WG_PASSIVE_HOURS = [18, 19, 20, 21]     # default evening hours
+    WG_DAILY = 350 / 365
+    WG_PASSIVE_HOURS = [18, 19, 20, 21]
     WG_PASSIVE_KWH = WG_DAILY / len(WG_PASSIVE_HOURS)
 
     df['load_A_auto'] = df['load_A'].copy()
@@ -260,14 +220,10 @@ def compute_automated_loads(base_df, dates, price_col):
 
     # --------------------------------------------------------
     # HP shifting
-    # 4,000 kWh/yr temperature-driven load (VDI 3807 Blatt 1, 2013)
-    # ±2h window (Gupta & Morey, 2023; IEA HPT Magazine, 2024)
-    # 2h minimum interval (Tibber Node-RED, 2024)
-    # 3 kWh/hr cap (Knoop et al., 2022)
     # --------------------------------------------------------
-    HP_MAX_KWH_HOUR = 3.0               # Knoop et al. (2022)
-    HP_MIN_ADJUSTMENT_INTERVAL = 2      # Tibber Node-RED (2024)
-    HP_WINDOW = 2                       # Gupta & Morey (2023)
+    HP_MAX_KWH_HOUR = 3.0
+    HP_MIN_ADJUSTMENT_INTERVAL = 2
+    HP_WINDOW = 2
 
     df['load_hp_auto'] = load_B['load_hp'].copy()
 
@@ -307,22 +263,14 @@ def compute_automated_loads(base_df, dates, price_col):
 
     # --------------------------------------------------------
     # EV shifting with 2-night lookahead
-    # 2,500 kWh/yr; 6.85 kWh/day (Märtz et al., 2022)
-    # Passive hours 18-21 (Märtz et al., 2022)
-    # Plug-in window 18:00-07:00 (Spencer et al., 2021)
-    # 2-night lookahead: defer if tomorrow night cheaper
-    #   (day-ahead prices available via Tibber at ~12:30)
-    # Cross-year deferral permitted — day-ahead prices available
-    #   on Dec 31 for Jan 1; last day of dataset (31.12.2025)
-    #   cannot defer as no following day exists in data
     # --------------------------------------------------------
-    EV_ANNUAL_KWH = 2500.0                              # Märtz et al. (2022)
-    EV_DAILY = EV_ANNUAL_KWH / 365                      # 6.85 kWh/day
-    EV_PASSIVE_HOURS = [18, 19, 20, 21]                 # Märtz et al. (2022)
+    EV_ANNUAL_KWH = 2500.0
+    EV_DAILY = EV_ANNUAL_KWH / 365
+    EV_PASSIVE_HOURS = [18, 19, 20, 21]
     EV_PASSIVE_KWH = EV_DAILY / len(EV_PASSIVE_HOURS)
-    EV_AUTO_WINDOW = list(range(18, 24)) + list(range(0, 8))  # Spencer et al. (2021)
+    EV_AUTO_WINDOW = list(range(18, 24)) + list(range(0, 8))
 
-    df['load_ev_auto'] = (df['load_C'] - df['load_B']).copy()
+    df['load_ev_auto'] = (df['load_C'] - df['load_A']).copy()
 
     deferred_dates = set()
 
@@ -330,21 +278,17 @@ def compute_automated_loads(base_df, dates, price_col):
         day_mask = df['date'] == d
         day_data = df[day_mask].copy()
 
-        # Remove passive load from source hours 18-21
         for h in EV_PASSIVE_HOURS:
             hour_mask = day_mask & (df['hour'] == h)
             df.loc[hour_mask, 'load_ev_auto'] -= EV_PASSIVE_KWH
 
-        # Skip if already handled by previous day's deferral
         if d in deferred_dates:
             continue
 
-        # Tonight's overnight window (18:00-07:00)
         tonight_window = day_data[day_data['hour'].isin(EV_AUTO_WINDOW)]
         tonight_best_price = tonight_window[price_col].min() if not tonight_window.empty else np.inf
         tonight_best_idx = tonight_window[price_col].idxmin() if not tonight_window.empty else None
 
-        # Tomorrow night's window — cross-year deferral permitted
         if i + 1 < len(dates):
             tomorrow = dates[i + 1]
             tomorrow_mask = df['date'] == tomorrow
@@ -356,9 +300,7 @@ def compute_automated_loads(base_df, dates, price_col):
             tomorrow_best_price = np.inf
             tomorrow_best_idx = None
 
-        # Charge on cheaper night
         if tomorrow_best_price < tonight_best_price and tomorrow_best_idx is not None:
-            # Reverse today's passive removal — today stays neutral
             for h in EV_PASSIVE_HOURS:
                 hour_mask = day_mask & (df['hour'] == h)
                 df.loc[hour_mask, 'load_ev_auto'] += EV_PASSIVE_KWH
@@ -368,8 +310,8 @@ def compute_automated_loads(base_df, dates, price_col):
             if tonight_best_idx is not None:
                 df.loc[tonight_best_idx, 'load_ev_auto'] += EV_DAILY
 
-    df['load_C_auto'] = df['load_A_auto'] + df['load_hp_auto'] + df['load_ev_auto']
-    df['load_D_auto'] = df['load_A_auto'] + df['load_ev_auto']
+    df['load_C_auto'] = df['load_A_auto'] + df['load_ev_auto']
+    df['load_D_auto'] = df['load_A_auto'] + df['load_hp_auto'] + df['load_ev_auto']
 
     return df[['load_A_auto', 'load_hp_auto', 'load_B_auto',
                'load_ev_auto', 'load_C_auto', 'load_D_auto']]
@@ -391,7 +333,7 @@ auto_t4 = compute_automated_loads(sim_auto, dates, 't4_ct_kwh')
 # LOAD CHECKS
 # ============================================================
 print("\n=== AUTOMATED LOAD CHECKS (all should match passive totals) ===")
-expected = {'A': 3500, 'B': 7500, 'C': 10000, 'D': 6000}
+expected = {'A': 3500, 'B': 7500, 'C': 6000, 'D': 10000}
 for label, auto_df in [('T2', auto_t2), ('T3', auto_t3), ('T4', auto_t4)]:
     for year in [2023, 2024, 2025]:
         year_mask = sim_auto['year'] == year
@@ -565,7 +507,7 @@ for label, price_col in [('T2', 't2_ct_kwh'), ('T3', 't3_ct_kwh'), ('T4', 't4_ct
 # CHECK 4: EV destination hour distribution T3 vs T4
 print("\n--- CHECK 4: EV destination hours T3 vs T4 (NT hours 23-6 higher for T4) ---")
 for label, auto_df in [('T3', auto_t3), ('T4', auto_t4)]:
-    ev_passive = (sim_auto['load_C'] - sim_auto['load_B']).values
+    ev_passive = (sim_auto['load_C'] - sim_auto['load_A']).values
     ev_auto = auto_df['load_ev_auto'].values
     diff = ev_auto - ev_passive
     dest_mask = diff > 0.001
