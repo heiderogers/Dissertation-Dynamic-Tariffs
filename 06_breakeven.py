@@ -1,5 +1,5 @@
 """
-Breakeven — Pipeline 3b
+Breakeven — Pipeline 3a
 Computes C* (break-even switching costs) per archetype × tariff × scenario × year
 and saves to data_simulation/breakeven.csv
 
@@ -169,5 +169,109 @@ breakeven = breakeven[[
 breakeven.to_csv('data_simulation/breakeven.csv', index=False)
 print(f"\nSaved: data_simulation/breakeven.csv ({len(breakeven)} rows)")
 print(breakeven.head(10))
+
+# ============================================================
+# WORST MONTH IDENTIFICATION — T2 automated, 2025
+# ============================================================
+print("\n=== WORST MONTH: T2 automated, 2025 ===")
+month_names = {1:'Jan',2:'Feb',3:'Mar',4:'Apr',5:'May',6:'Jun',
+               7:'Jul',8:'Aug',9:'Sep',10:'Oct',11:'Nov',12:'Dec'}
+
+baseline_monthly = (bills[(bills['tariff']=='T1') & (bills['scenario']=='passive') & (bills['year']==2025)]
+                        [['archetype','month','monthly_bill_eur']]
+                        .rename(columns={'monthly_bill_eur':'baseline'}))
+
+t2_auto_monthly = (bills[(bills['tariff']=='T2') & (bills['scenario']=='automated') & (bills['year']==2025)]
+                       [['archetype','month','monthly_bill_eur']])
+
+merged = t2_auto_monthly.merge(baseline_monthly, on=['archetype','month'])
+merged['diff'] = merged['monthly_bill_eur'] - merged['baseline']
+
+worst = merged.loc[merged.groupby('archetype')['diff'].idxmax()][['archetype','month','diff']]
+worst['month_name'] = worst['month'].map(month_names)
+print(worst[['archetype','month_name','diff']].to_string())
+
+# ============================================================
+# Dissertation tables
+# ============================================================
+
+print("\n" + "="*60)
+print("DISSERTATION TABLES")
+print("="*60)
+
+TARIFF_ORDER = ['T1', 'T2', 'T3_TIB', 'T4']
+ARCH_ORDER = ['A', 'B', 'C', 'D']
+SCENARIOS = ['passive', 'automated']
+
+# --- TABLE 1: Bills Matrix 2025 ---
+print("\n--- TABLE 1: Annual Bills by Archetype and Tariff, 2025 (€/yr) ---")
+bills_2025 = annual[annual['year'] == 2025].copy()
+bills_2025['bill'] = bills_2025['annual_bill_eur'].round(0).astype(int)
+
+rows = []
+for arch in ARCH_ORDER:
+    row = {'Archetype': arch}
+    # T1 passive
+    t1 = bills_2025[(bills_2025['archetype']==arch) & (bills_2025['tariff']=='T1') & (bills_2025['scenario']=='passive')]
+    row['T1'] = int(t1['annual_bill_eur'].values[0]) if len(t1) else 'n/a'
+    for tariff in ['T2', 'T3_TIB', 'T4']:
+        for scenario in SCENARIOS:
+            val = bills_2025[(bills_2025['archetype']==arch) & (bills_2025['tariff']==tariff) & (bills_2025['scenario']==scenario)]
+            col = f"{tariff.replace('_TIB','')} {scenario[:4]}"
+            row[col] = int(val['annual_bill_eur'].values[0]) if len(val) else 'n/a'
+    rows.append(row)
+
+bills_table = pd.DataFrame(rows)
+print(bills_table.to_string(index=False))
+
+# --- TABLE 2: C* 2025 ---
+print("\n--- TABLE 2: Break-Even Switching Costs C*, 2025 (€/yr) ---")
+cstar_2025 = annual[annual['year'] == 2025].copy()
+
+rows = []
+for arch in ARCH_ORDER:
+    row = {'Archetype': arch}
+    for tariff in ['T2', 'T3_TIB', 'T4']:
+        for scenario in SCENARIOS:
+            val = cstar_2025[(cstar_2025['archetype']==arch) & (cstar_2025['tariff']==tariff) & (cstar_2025['scenario']==scenario)]
+            col = f"{tariff.replace('_TIB','')} {scenario[:4]}"
+            row[col] = int(round(val['c_star'].values[0])) if len(val) else 'n/a'
+    rows.append(row)
+
+cstar_table = pd.DataFrame(rows)
+print(cstar_table.to_string(index=False))
+
+# --- TABLE 3: C* T2 Automated by Year ---
+print("\n--- TABLE 3: C* T2 Automated by Year (€/yr) ---")
+t2_auto = annual[(annual['tariff']=='T2') & (annual['scenario']=='automated')].copy()
+
+rows = []
+for arch in ARCH_ORDER:
+    row = {'Archetype': arch}
+    for year in [2023, 2024, 2025]:
+        val = t2_auto[(t2_auto['archetype']==arch) & (t2_auto['year']==year)]
+        row[str(year)] = int(round(val['c_star'].values[0])) if len(val) else 'n/a'
+    rows.append(row)
+
+t2_table = pd.DataFrame(rows)
+print(t2_table.to_string(index=False))
+
+# --- TABLE 4: Risk Metrics T2 Automated 2025 ---
+print("\n--- TABLE 4: Risk Metrics T2 Automated, 2025 ---")
+risk_2025 = risk_peryear[2025]
+t2_risk = risk_2025[(risk_2025['tariff']=='T2') & (risk_2025['scenario']=='automated')].copy()
+
+rows = []
+for arch in ARCH_ORDER:
+    val = t2_risk[t2_risk['archetype']==arch]
+    if len(val):
+        rows.append({
+            'Archetype': arch,
+            'Worst month premium (€)': round(val['worst_month_eur_2025'].values[0], 2),
+            'Loss month probability': round(val['loss_month_prob_2025'].values[0], 2)
+        })
+
+risk_table = pd.DataFrame(rows)
+print(risk_table.to_string(index=False))
 
 print("\nDone.")

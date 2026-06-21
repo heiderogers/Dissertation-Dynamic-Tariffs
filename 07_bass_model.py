@@ -1,5 +1,5 @@
 """
-Bass Diffusion Model — Pipeline 3c
+Bass Diffusion Model — Pipeline 3b
 Models dynamic tariff adoption over time with smart meter infrastructure ceiling.
 
 M(t): time-varying addressable market — EV households with home charging based on simulation results (×72% filter to exclude industrial and not at-home charging)
@@ -81,9 +81,14 @@ Q_SCENARIOS = {
 
 # ============================================================
 # SMART METER ROLLOUT I(t) — single scenario: current rollout
+# 4.23M = 90% of §14a device holders mandated by §45 MsbG by 2032
+# I0 = 1.1M reflects §14a subpopulation installed base (BNetzA Q4 2025),
+# variation from total smart meter rollout in 2025 as I(t) follows the §45 MsbG mandate trajectory
 # ============================================================
 I0 = 1_100_000
 L = 42_000_000
+
+# Target of 90% of households in mandate by 2032
 
 I_WAYPOINTS = {
     'current': (4_230_000, 2032),
@@ -172,16 +177,16 @@ for i, year in enumerate(YEARS):
 # ============================================================
 # PRINT: SUMMARY TABLE
 # ============================================================
-print("\n=== ADOPTION SUMMARY — 9 combinations ===")
-print(f"\n{'p scenario':<12}{'q scenario':<12}{'2030':>14}{'2032':>14}{'2035':>14}")
+print("\n=== ADOPTION SUMMARY — 9 combinations (ordered by q scenario) ===")
+print(f"\n{'q scenario':<12}{'p scenario':<12}{'2030':>14}{'2032':>14}{'2035':>14}")
 print("-" * 68)
-for p_label in P_SCENARIOS.keys():
-    for q_label in Q_SCENARIOS.keys():
+for q_label in Q_SCENARIOS.keys():
+    for p_label in P_SCENARIOS.keys():
         subset = df[(df['p_scenario'] == p_label) & (df['q_scenario'] == q_label)]
         y30 = subset[subset['year'] == 2030]['adoption_constrained'].values[0]
         y32 = subset[subset['year'] == 2032]['adoption_constrained'].values[0]
         y35 = subset[subset['year'] == 2035]['adoption_constrained'].values[0]
-        print(f"{p_label:<12}{q_label:<12}"
+        print(f"{q_label:<12}{p_label:<12}"
               f"{y30/1e6:>8.2f}M ({y30/M_T[5]*100:.0f}%)"
               f"{y32/1e6:>8.2f}M ({y32/M_T[7]*100:.0f}%)"
               f"{y35/1e6:>8.2f}M ({y35/M_T[10]*100:.0f}%)")
