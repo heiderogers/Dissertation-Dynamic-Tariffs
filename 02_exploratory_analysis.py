@@ -141,7 +141,8 @@ for i, year in enumerate([2023, 2024, 2025]):
     axes[i].set_xlabel('€/MWh')
     neg = (subset < 0).sum()
     mean = subset.mean()
-    axes[i].text(0.95, 0.95, f'Mean: {mean:.0f}\nNeg hrs: {neg}',
+    axes[i].text(0.95, 0.95,
+                 f'Mean: {mean:.0f}\nSD: {subset.std():.0f}\nNeg hrs: {neg}\nRenewables: {master.loc[master["year"] == year, "renewable_share"].mean():.0f}%\nSolar: {master.loc[master["year"] == year, "solar"].sum() / 1e6:.1f} TWh\nWind: {(master.loc[master["year"] == year, "wind_onshore"] + master.loc[master["year"] == year, "wind_offshore"]).sum() / 1e6:.1f} TWh',
                  transform=axes[i].transAxes, ha='right', va='top', fontsize=9)
 
 axes[0].set_ylabel('Hours')

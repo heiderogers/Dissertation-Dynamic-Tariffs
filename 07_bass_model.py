@@ -210,6 +210,32 @@ print(f"\nq scenarios:")
 for label, params in Q_SCENARIOS.items():
     print(f"  {label}: q={params['q']} — {params['label']}")
 
+# Unconstrained vs constrained adoption
+
+print("\n=== UNCONSTRAINED vs CONSTRAINED — central and high q scenarios ===")
+print(f"\n{'q':<10}{'p':<10}{'2030 unc':>12}{'2030 con':>12}{'2032 unc':>12}{'2032 con':>12}{'2035 unc':>12}{'2035 con':>12}{'wedge 2035':>12}")
+print("-" * 104)
+
+for q_label in ['central', 'high']:
+    q = Q_SCENARIOS[q_label]['q']
+    for p_label in ['low', 'central', 'high']:
+        p = P_SCENARIOS[p_label]['p']
+        M_longrun = M_T[-1]
+        unc = bass_cumulative(T, p, q, M_longrun)
+        ceiling = np.minimum(M_T, I_T)
+        con = np.minimum(unc, ceiling)
+
+        idx = {2030: 5, 2032: 7, 2035: 10}
+        print(f"{q_label:<10}{p_label:<10}"
+              f"{unc[idx[2030]]/1e6:>11.2f}M"
+              f"{con[idx[2030]]/1e6:>11.2f}M"
+              f"{unc[idx[2032]]/1e6:>11.2f}M"
+              f"{con[idx[2032]]/1e6:>11.2f}M"
+              f"{unc[idx[2035]]/1e6:>11.2f}M"
+              f"{con[idx[2035]]/1e6:>11.2f}M"
+              f"{(unc[idx[2035]]-con[idx[2035]])/1e6:>11.2f}M")
+    print()
+
 # ============================================================
 # FIGURE 1 — 3 panels, one per q scenario
 # Each panel: 3 adoption lines (low/central/high p) + M(t) and I(t)
